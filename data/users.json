@@ -1,0 +1,16 @@
+[
+  {
+    "id": "admin-001",
+    "name": "Администратор",
+    "email": "admin@fcrm.local",
+    "role": "admin",
+    "created": "2025-08-23T23:26:24.604631"
+  },
+  {
+    "id": "user-002",
+    "name": "Чех",
+    "email": "gremlen@gmail.com",
+    "role": "operator",
+    "created": "2025-08-23T23:26:44.835455"
+  }
+]

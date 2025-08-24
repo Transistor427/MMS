@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F-CRM - Система мониторинга 3D-принтеров</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Боковая панель -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>F-CRM</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-section="dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Панель управления</span>
+                </a>
+                <a href="#" class="nav-item" data-section="printers">
+                    <i class="fas fa-home"></i>
+                    <span>Принтеры</span>
+                </a>
+                <a href="#" class="nav-item" data-section="files">
+                    <i class="fas fa-print"></i>
+                    <span>Файлы</span>
+                </a>
+                <a href="#" class="nav-item" data-section="jobs">
+                    <i class="fas fa-list"></i>
+                    <span>Задания</span>
+                </a>
+                <a href="#" class="nav-item" data-section="users">
+                    <i class="fas fa-users"></i>
+                    <span>Пользователи</span>
+                </a>
+                <a href="#" class="nav-item" data-section="reports">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Отчеты</span>
+                </a>
+                <a href="#" class="nav-item" data-section="settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Настройки</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Основной контент -->
+        <div class="main-content">
+            <!-- Верхняя панель -->
+            <header class="header">
+                <div class="status-tabs">
+                    <button class="status-tab active" data-status="all">
+                        Все (<span id="total-printers">0</span>)
+                    </button>
+                    <button class="status-tab" data-status="ready">
+                        Готовы к запуску (<span id="ready-printers">0</span>)
+                    </button>
+                    <button class="status-tab" data-status="attention">
+                        Требуют внимания (<span id="attention-printers">0</span>)
+                    </button>
+                    <button class="status-tab" data-status="completed">
+                        Завершенные задачи (<span id="completed-printers">0</span>)
+                    </button>
+                    <button class="status-tab" data-status="idle">
+                        Не в задаче (<span id="idle-printers">0</span>)
+                    </button>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="edit-tags-btn">
+                        <i class="fas fa-tags"></i> Редактировать теги
+                    </button>
+                    <button class="btn btn-primary" id="add-printer-btn">
+                        <i class="fas fa-plus"></i> Добавить принтер
+                    </button>
+                    <div class="user-menu">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Панель фильтров -->
+            <div class="filters-panel">
+                <div class="filters">
+                    <select class="filter-select" id="tag-filter">
+                        <option value="">Фильтр по тегам</option>
+                    </select>
+                    <select class="filter-select" id="status-filter">
+                        <option value="">Статус печати</option>
+                        <option value="printing">Печать</option>
+                        <option value="paused">Пауза</option>
+                        <option value="idle">Ожидание</option>
+                        <option value="error">Ошибка</option>
+                    </select>
+                    <select class="filter-select" id="task-filter">
+                        <option value="">Принадлежит задаче</option>
+                    </select>
+                    <select class="filter-select" id="model-filter">
+                        <option value="">Модель принтера</option>
+                    </select>
+                </div>
+                <div class="bulk-actions">
+                    <button class="btn btn-secondary" id="bulk-action-btn" disabled>
+                        <i class="fas fa-cog"></i> Массовые действия (<span id="selected-count">0</span> выбрано)
+                    </button>
+                </div>
+                <div class="view-controls">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="select-all">
+                        <span>Выбрать все</span>
+                    </label>
+                    <div class="view-toggle">
+                        <button class="view-btn" data-view="list">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <button class="view-btn active" data-view="grid">
+                            <i class="fas fa-th"></i>
+                        </button>
+                    </div>
+                    <span class="total-count">Всего: <span id="filtered-count">0</span></span>
+                </div>
+            </div>
+
+            <!-- Основная область с принтерами -->
+            <div class="printers-container" id="printers-container">
+                <!-- Принтеры будут загружаться динамически -->
+            </div>
+
+            <!-- Панель файлов (скрыта по умолчанию) -->
+            <div class="files-panel" id="files-panel" style="display: none;">
+                <div class="panel-header">
+                    <h2>Управление файлами</h2>
+                    <div class="panel-actions">
+                        <button class="btn btn-primary" id="upload-file-btn">
+                            <i class="fas fa-upload"></i> Загрузить файл
+                        </button>
+                        <button class="btn btn-secondary" id="create-folder-btn">
+                            <i class="fas fa-folder-plus"></i> Создать папку
+                        </button>
+                    </div>
+                </div>
+
+                <div class="files-toolbar">
+                    <div class="breadcrumb" id="files-breadcrumb">
+                        <span class="breadcrumb-item active">Корневая папка</span>
+                    </div>
+                    <div class="files-actions">
+                        <button class="btn btn-sm btn-secondary" id="refresh-files-btn">
+                            <i class="fas fa-sync-alt"></i> Обновить
+                        </button>
+                        <button class="btn btn-sm btn-secondary" id="select-all-files-btn">
+                            <i class="fas fa-check-square"></i> Выбрать все
+                        </button>
+                    </div>
+                </div>
+
+                <div class="files-container" id="files-container">
+                    <div class="files-grid" id="files-grid">
+                        <!-- Файлы будут загружаться динамически -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Панель заданий (скрыта по умолчанию) -->
+            <div class="jobs-panel" id="jobs-panel" style="display: none;">
+                <div class="panel-header">
+                    <h2>Управление заданиями</h2>
+                    <div class="panel-actions">
+                        <button class="btn btn-primary" id="create-job-btn">
+                            <i class="fas fa-plus"></i> Создать задание
+                        </button>
+                    </div>
+                </div>
+
+                <div class="jobs-container" id="jobs-container">
+                    <div class="jobs-list" id="jobs-list">
+                        <!-- Задания будут загружаться динамически -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Панель пользователей (скрыта по умолчанию) -->
+            <div class="users-panel" id="users-panel" style="display: none;">
+                <div class="panel-header">
+                    <h2>Управление пользователями</h2>
+                    <div class="panel-actions">
+                        <button class="btn btn-primary" id="add-user-btn">
+                            <i class="fas fa-user-plus"></i> Добавить пользователя
+                        </button>
+                    </div>
+                </div>
+
+                <div class="users-container" id="users-container">
+                    <div class="users-list" id="users-list">
+                        <!-- Пользователи будут загружаться динамически -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Панель отчетов (скрыта по умолчанию) -->
+            <div class="reports-panel" id="reports-panel" style="display: none;">
+                <div class="panel-header">
+                    <h2>Отчеты и аналитика</h2>
+                    <div class="panel-actions">
+                        <button class="btn btn-primary" id="export-report-btn">
+                            <i class="fas fa-download"></i> Экспорт отчета
+                        </button>
+                    </div>
+                </div>
+
+                <div class="reports-container" id="reports-container">
+                    <div class="reports-grid">
+                        <div class="report-card">
+                            <h3>Статистика печати</h3>
+                            <div class="report-content" id="printing-stats">
+                                <!-- Статистика будет загружена динамически -->
+                            </div>
+                        </div>
+                        <div class="report-card">
+                            <h3>Производительность принтеров</h3>
+                            <div class="report-content" id="printer-performance">
+                                <!-- Производительность будет загружена динамически -->
+                            </div>
+                        </div>
+                        <div class="report-card">
+                            <h3>Использование материалов</h3>
+                            <div class="report-content" id="material-usage">
+                                <!-- Использование материалов будет загружено динамически -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Панель настроек (скрыта по умолчанию) -->
+            <div class="settings-panel" id="settings-panel" style="display: none;">
+                <div class="panel-header">
+                    <h2>Настройки системы</h2>
+                </div>
+
+                <div class="settings-container" id="settings-container">
+                    <div class="settings-tabs">
+                        <button class="settings-tab active" data-tab="general">
+                            <i class="fas fa-cog"></i> Общие
+                        </button>
+                        <button class="settings-tab" data-tab="notifications">
+                            <i class="fas fa-bell"></i> Уведомления
+                        </button>
+                        <button class="settings-tab" data-tab="security">
+                            <i class="fas fa-shield-alt"></i> Безопасность
+                        </button>
+                        <button class="settings-tab" data-tab="backup">
+                            <i class="fas fa-database"></i> Резервное копирование
+                        </button>
+                    </div>
+
+                    <div class="settings-content">
+                        <div class="settings-section active" id="general-settings">
+                            <h3>Общие настройки</h3>
+                            <form id="general-settings-form">
+                                <div class="form-group">
+                                    <label for="system-name">Название системы</label>
+                                    <input type="text" id="system-name" value="F-CRM">
+                                </div>
+                                <div class="form-group">
+                                    <label for="update-interval">Интервал обновления (сек)</label>
+                                    <input type="number" id="update-interval" value="5" min="1" max="60">
+                                </div>
+                                <div class="form-group">
+                                    <label for="timezone">Часовой пояс</label>
+                                    <select id="timezone">
+                                        <option value="UTC+3">Москва (UTC+3)</option>
+                                        <option value="UTC+0">UTC</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Сохранить</button>
+                            </form>
+                        </div>
+
+                        <div class="settings-section" id="notifications-settings">
+                            <h3>Настройки уведомлений</h3>
+                            <form id="notifications-settings-form">
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="email-notifications" checked>
+                                        <span>Email уведомления</span>
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="browser-notifications" checked>
+                                        <span>Браузерные уведомления</span>
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label for="notification-email">Email для уведомлений</label>
+                                    <input type="email" id="notification-email" placeholder="admin@example.com">
+                                </div>
+                                <button type="submit" class="btn btn-primary">Сохранить</button>
+                            </form>
+                        </div>
+
+                        <div class="settings-section" id="security-settings">
+                            <h3>Настройки безопасности</h3>
+                            <form id="security-settings-form">
+                                <div class="form-group">
+                                    <label for="session-timeout">Таймаут сессии (мин)</label>
+                                    <input type="number" id="session-timeout" value="30" min="5" max="480">
+                                </div>
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="require-auth" checked>
+                                        <span>Требовать авторизацию</span>
+                                    </label>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Сохранить</button>
+                            </form>
+                        </div>
+
+                        <div class="settings-section" id="backup-settings">
+                            <h3>Резервное копирование</h3>
+                            <div class="backup-actions">
+                                <button class="btn btn-primary" id="create-backup-btn">
+                                    <i class="fas fa-download"></i> Создать резервную копию
+                                </button>
+                                <button class="btn btn-secondary" id="restore-backup-btn">
+                                    <i class="fas fa-upload"></i> Восстановить из копии
+                                </button>
+                            </div>
+                            <div class="backup-list" id="backup-list">
+                                <!-- Список резервных копий будет загружен динамически -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальные окна -->
+    
+    <!-- Модальное окно добавления принтера -->
+    <div class="modal" id="add-printer-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Добавить принтер</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-printer-form">
+                    <div class="form-group">
+                        <label for="printer-name">Название принтера</label>
+                        <input type="text" id="printer-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="printer-ip">IP-адрес</label>
+                        <input type="text" id="printer-ip" required placeholder="192.168.1.100">
+                    </div>
+                    <div class="form-group">
+                        <label for="printer-port">Порт Moonraker</label>
+                        <input type="number" id="printer-port" value="7125" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="printer-tags">Теги (через запятую)</label>
+                        <input type="text" id="printer-tags" placeholder="производство, детали">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-add-printer">Отмена</button>
+                <button class="btn btn-primary" id="save-printer">Добавить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно загрузки файла -->
+    <div class="modal" id="upload-file-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Загрузить файл в систему</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="upload-file-form">
+                    <div class="form-group">
+                        <label for="file-input">Выберите файл (.gcode, .3mf)</label>
+                        <input type="file" id="file-input" accept=".gcode,.g,.gco,.gcode.gz,.ufp,.3mf" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="file-description">Описание файла (необязательно)</label>
+                        <textarea id="file-description" placeholder="Краткое описание файла..." rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-upload">Отмена</button>
+                <button class="btn btn-primary" id="upload-file">Загрузить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно запуска печати -->
+    <div class="modal" id="start-print-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Запустить печать</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="print-file">Выберите файл для печати</label>
+                    <select id="print-file" required>
+                        <option value="">Загрузка файлов...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-start-print">Отмена</button>
+                <button class="btn btn-primary" id="start-print">Запустить печать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно подробной информации -->
+    <div class="modal" id="printer-details-modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>Подробная информация о принтере</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="printer-details">
+                    <div class="printer-info">
+                        <h4 id="detail-printer-name">Название принтера</h4>
+                        <p><strong>ID:</strong> <span id="detail-printer-id"></span></p>
+                        <p><strong>IP:</strong> <span id="detail-printer-ip"></span></p>
+                        <p><strong>Статус:</strong> <span id="detail-printer-status"></span></p>
+                    </div>
+                    <div class="printer-webcam">
+                        <h4>Веб-камера</h4>
+                        <img id="detail-webcam" src="" alt="Веб-камера принтера">
+                    </div>
+                    <div class="printer-temperatures">
+                        <h4>Температуры</h4>
+                        <div class="temp-display">
+                            <div class="temp-item">
+                                <span class="temp-label">Экструдер:</span>
+                                <span class="temp-value" id="detail-extruder-temp">--°C</span>
+                            </div>
+                            <div class="temp-item">
+                                <span class="temp-label">Стол:</span>
+                                <span class="temp-value" id="detail-bed-temp">--°C</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="printer-files">
+                        <h4>Файлы на принтере</h4>
+                        <div class="files-list" id="detail-files-list">
+                            <!-- Файлы будут загружены динамически -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="open-printer-web">Открыть веб-интерфейс принтера</button>
+                <button class="btn btn-primary" id="close-details">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно создания задания -->
+    <div class="modal" id="create-job-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Создать новое задание</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="create-job-form">
+                    <div class="form-group">
+                        <label for="job-name">Название задания *</label>
+                        <input type="text" id="job-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="job-file">Файл для печати *</label>
+                        <select id="job-file" required>
+                            <option value="">Выберите файл</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="job-quantity">Количество</label>
+                        <input type="number" id="job-quantity" value="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="job-priority">Приоритет</label>
+                        <select id="job-priority">
+                            <option value="low">Низкий</option>
+                            <option value="normal" selected>Обычный</option>
+                            <option value="high">Высокий</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="job-material">Материал</label>
+                        <select id="job-material">
+                            <option value="PLA">PLA</option>
+                            <option value="ABS">ABS</option>
+                            <option value="PETG">PETG</option>
+                            <option value="TPU">TPU</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="job-printers">Принтеры</label>
+                        <div id="job-printers-list">
+                            <!-- Принтеры будут загружены динамически -->
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="save-job">Создать задание</button>
+                <button class="btn btn-secondary" onclick="printerManager.hideModal('create-job-modal')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно добавления пользователя -->
+    <div class="modal" id="add-user-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Добавить пользователя</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-user-form">
+                    <div class="form-group">
+                        <label for="user-name">Имя *</label>
+                        <input type="text" id="user-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="user-email">Email *</label>
+                        <input type="email" id="user-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="user-role">Роль</label>
+                        <select id="user-role">
+                            <option value="operator">Оператор</option>
+                            <option value="admin">Администратор</option>
+                            <option value="viewer">Наблюдатель</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="save-user">Добавить пользователя</button>
+                <button class="btn btn-secondary" onclick="printerManager.hideModal('add-user-modal')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

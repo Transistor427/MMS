@@ -1,0 +1,12 @@
+[
+  {
+    "id": "3DP-001",
+    "name": "S300 - 101",
+    "ip_address": "192.168.31.100",
+    "port": 7125,
+    "status": "offline",
+    "last_seen": null,
+    "webcam_url": "http://192.168.31.100:8080/?action=stream",
+    "moonraker_url": "http://192.168.31.100:7125"
+  }
+]

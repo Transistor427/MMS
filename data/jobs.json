@@ -1,0 +1,17 @@
+[
+  {
+    "id": "job-001",
+    "name": "S300-1",
+    "filename": "file-001",
+    "quantity": 1,
+    "priority": "high",
+    "material": "PETG",
+    "printers": [],
+    "status": "pending",
+    "progress": 0,
+    "estimated_time": "Неизвестно",
+    "created": "2025-08-23T23:41:01.696860",
+    "started": null,
+    "completed": null
+  }
+]

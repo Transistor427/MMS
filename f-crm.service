@@ -1,0 +1,17 @@
+[Unit]
+Description=F-CRM 3D Printer Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=f-crm
+Group=f-crm
+WorkingDirectory=/opt/f-crm
+Environment=FLASK_ENV=production
+Environment=PYTHONPATH=/opt/f-crm
+ExecStart=/usr/bin/python3 /opt/f-crm/app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
