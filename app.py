@@ -118,13 +118,13 @@ class PrinterManager:
     def add_printer(self, name, ip_address, port=7125):
         """Добавление нового принтера"""
         printer = {
-            'id': f"3DP-{len(self.printers)+1:03d}",
+            'id': f"ZB3D-{len(self.printers)+1:03d}",
             'name': name,
             'ip_address': ip_address,
             'port': port,
             'status': 'offline',
             'last_seen': None,
-            'webcam_url': f"http://{ip_address}:8080/?action=stream",
+            'webcam_url': f"http://{ip_address}:8080/webcam/?action=stream",
             'moonraker_url': f"http://{ip_address}:{port}"
         }
         self.printers.append(printer)
