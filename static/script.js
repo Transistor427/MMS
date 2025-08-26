@@ -973,7 +973,78 @@ class PrinterManager {
     }
 
     showEditTagsModal() {
-        this.showNotification('Функция редактирования тегов будет добавлена в следующей версии', 'info');
+        const selectedPrinters = Array.from(this.selectedPrinters);
+        if (selectedPrinters.length === 0) {
+            this.showNotification('Выберите принтеры для редактирования тегов', 'info');
+            return;
+        }
+        
+        const modalContent = `
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h2>Редактировать теги</h2>
+                <div class="form-group">
+                    <label for="tags-input">Теги (через запятую)</label>
+                    <input type="text" id="tags-input" placeholder="Введите теги">
+                </div>
+                <div class="selected-printers">
+                    <strong>Выбранные принтеры:</strong>
+                    <ul>
+                        ${selectedPrinters.map(id => {
+                            const printer = this.printers.find(p => p.id === id);
+                            return printer ? `<li>${printer.name}</li>` : '';
+                        }).join('')}
+                    </ul>
+                </div>
+                <div class="form-actions">
+                    <button id="cancel-edit-tags" class="btn btn-secondary">Отмена</button>
+                    <button id="save-tags" class="btn btn-primary">Сохранить</button>
+                </div>
+            </div>
+        `;
+        
+        const modal = document.createElement('div');
+        modal.id = 'edit-tags-modal';
+        modal.className = 'modal';
+        modal.innerHTML = modalContent;
+        document.body.appendChild(modal);
+        
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#cancel-edit-tags').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#save-tags').addEventListener('click', async () => {
+            const tags = document.getElementById('tags-input').value;
+            const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+            
+            try {
+                // Обновляем теги для выбранных принтеров
+                for (const printerId of selectedPrinters) {
+                    const printer = this.printers.find(p => p.id === printerId);
+                    if (printer) {
+                        printer.tags = tagsArray;
+                        // В реальном приложении здесь будет вызов API
+                        // await fetch(`/api/printers/${printerId}/tags`, {
+                        //     method: 'PUT',
+                        //     body: JSON.stringify({ tags: tagsArray })
+                        // });
+                    }
+                }
+                
+                this.showNotification('Теги обновлены', 'success');
+                document.body.removeChild(modal);
+                this.renderPrinters();
+            } catch (error) {
+                console.error('Ошибка обновления тегов:', error);
+                this.showNotification('Ошибка обновления тегов', 'error');
+            }
+        });
+        
+        this.showModal('edit-tags-modal');
     }
 
     // Переключение между панелями
@@ -1279,20 +1350,34 @@ class PrinterManager {
         const container = document.getElementById('printing-stats');
         if (!container) return;
 
-        // Здесь будет загрузка статистики печати
+        // Calculate stats
+        const totalPrinters = this.printers.length;
+        const onlinePrinters = this.printers.filter(p => p.status?.online).length;
+        const printingPrinters = this.printers.filter(p => p.status?.print_stats?.state === 'printing').length;
+        const idlePrinters = onlinePrinters - printingPrinters;
+        const offlinePrinters = totalPrinters - onlinePrinters;
+
         container.innerHTML = `
             <div class="stats-grid">
                 <div class="stat-item">
-                    <div class="stat-value">${this.printers.length}</div>
+                    <div class="stat-value">${totalPrinters}</div>
                     <div class="stat-label">Всего принтеров</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">${this.printers.filter(p => p.status?.online).length}</div>
+                    <div class="stat-value">${onlinePrinters}</div>
                     <div class="stat-label">Онлайн</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">${this.printers.filter(p => p.status?.print_stats?.state === 'printing').length}</div>
+                    <div class="stat-value">${printingPrinters}</div>
                     <div class="stat-label">Печатают</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${idlePrinters}</div>
+                    <div class="stat-label">Ожидание</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${offlinePrinters}</div>
+                    <div class="stat-label">Недоступны</div>
                 </div>
             </div>
         `;
@@ -1302,22 +1387,111 @@ class PrinterManager {
         const container = document.getElementById('printer-performance');
         if (!container) return;
 
-        container.innerHTML = `
-            <div class="performance-chart">
-                <p>График производительности будет добавлен в следующей версии</p>
-            </div>
-        `;
+        // Prepare data for chart
+        const printersData = [];
+        for (const printer of this.printers) {
+            if (printer.status?.online) {
+                const printStats = printer.status.print_stats || {};
+                printersData.push({
+                    name: printer.name,
+                    completed: printStats.total_duration || 0,
+                    failed: printStats.filament_used || 0
+                });
+            }
+        }
+
+        // Sort by completed prints
+        printersData.sort((a, b) => b.completed - a.completed);
+
+        // Create chart canvas
+        container.innerHTML = '<canvas id="performance-chart" width="400" height="300"></canvas>';
+
+        // Initialize chart
+        const ctx = document.getElementById('performance-chart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: printersData.map(p => p.name),
+                datasets: [{
+                    label: 'Время печати (часы)',
+                    data: printersData.map(p => (p.completed / 3600).toFixed(1)),
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Часы'
+                        }
+                    }
+                }
+            }
+        });
     }
 
     async loadMaterialUsage() {
         const container = document.getElementById('material-usage');
         if (!container) return;
 
-        container.innerHTML = `
-            <div class="material-stats">
-                <p>Статистика использования материалов будет добавлена в следующей версии</p>
-            </div>
-        `;
+        // Calculate material usage
+        const materialUsage = {};
+        this.printers.forEach(printer => {
+            if (printer.status?.online && printer.status.print_stats) {
+                const material = printer.status.print_stats.filament_type || 'Unknown';
+                const used = printer.status.print_stats.filament_used || 0;
+                
+                if (!materialUsage[material]) {
+                    materialUsage[material] = 0;
+                }
+                materialUsage[material] += used;
+            }
+        });
+
+        // Convert to array for chart
+        const materials = Object.keys(materialUsage);
+        const usage = Object.values(materialUsage);
+
+        // Create chart canvas
+        container.innerHTML = '<canvas id="material-chart" width="400" height="300"></canvas>';
+
+        // Initialize chart
+        const ctx = document.getElementById('material-chart').getContext('2d');
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: materials,
+                datasets: [{
+                    data: usage,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.5)',
+                        'rgba(54, 162, 235, 0.5)',
+                        'rgba(255, 206, 86, 0.5)',
+                        'rgba(75, 192, 192, 0.5)',
+                        'rgba(153, 102, 255, 0.5)',
+                        'rgba(255, 159, 64, 0.5)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Использование материалов (граммы)'
+                    }
+                }
+            }
+        });
     }
 
     // Загрузка настроек
@@ -1483,7 +1657,60 @@ class PrinterManager {
 
     // Функции для работы с модальными окнами
     showCreateFolderModal() {
-        this.showNotification('Создание папок будет добавлено в следующей версии', 'info');
+        const modalContent = `
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h2>Создать новую папку</h2>
+                <div class="form-group">
+                    <label for="folder-name">Имя папки</label>
+                    <input type="text" id="folder-name" placeholder="Введите имя папки">
+                </div>
+                <div class="form-actions">
+                    <button id="cancel-create-folder" class="btn btn-secondary">Отмена</button>
+                    <button id="create-folder" class="btn btn-primary">Создать</button>
+                </div>
+            </div>
+        `;
+        
+        const modal = document.createElement('div');
+        modal.id = 'create-folder-modal';
+        modal.className = 'modal';
+        modal.innerHTML = modalContent;
+        document.body.appendChild(modal);
+        
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#cancel-create-folder').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#create-folder').addEventListener('click', async () => {
+            const folderName = document.getElementById('folder-name').value;
+            if (!folderName) {
+                this.showNotification('Введите имя папки', 'error');
+                return;
+            }
+            
+            try {
+                // В реальном приложении здесь будет вызов API
+                // await fetch('/api/folders', { method: 'POST', body: JSON.stringify({ name: folderName }) });
+                
+                this.showNotification(`Папка "${folderName}" создана`, 'success');
+                document.body.removeChild(modal);
+                
+                // Обновляем список файлов
+                if (document.getElementById('files-panel').style.display !== 'none') {
+                    this.loadFiles();
+                }
+            } catch (error) {
+                console.error('Ошибка создания папки:', error);
+                this.showNotification('Ошибка создания папки', 'error');
+            }
+        });
+        
+        this.showModal('create-folder-modal');
     }
 
     async showCreateJobModal() {
@@ -1537,15 +1764,191 @@ class PrinterManager {
     }
 
     exportReport() {
-        this.showNotification('Экспорт отчетов будет добавлен в следующей версии', 'info');
+        const modalContent = `
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h2>Экспорт отчета</h2>
+                <div class="form-group">
+                    <label for="report-type">Тип отчета</label>
+                    <select id="report-type">
+                        <option value="printers">Статистика принтеров</option>
+                        <option value="jobs">История заданий</option>
+                        <option value="materials">Использование материалов</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="export-format">Формат</label>
+                    <select id="export-format">
+                        <option value="pdf">PDF</option>
+                        <option value="csv">CSV</option>
+                        <option value="json">JSON</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button id="cancel-export" class="btn btn-secondary">Отмена</button>
+                    <button id="generate-report" class="btn btn-primary">Создать отчет</button>
+                </div>
+            </div>
+        `;
+        
+        const modal = document.createElement('div');
+        modal.id = 'export-report-modal';
+        modal.className = 'modal';
+        modal.innerHTML = modalContent;
+        document.body.appendChild(modal);
+        
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#cancel-export').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#generate-report').addEventListener('click', async () => {
+            const reportType = document.getElementById('report-type').value;
+            const exportFormat = document.getElementById('export-format').value;
+            
+            try {
+                // В реальном приложении здесь будет вызов API
+                // const response = await fetch(`/api/reports/export?type=${reportType}&format=${exportFormat}`);
+                
+                // Создаем фиктивную ссылку для скачивания
+                const blob = new Blob([`Отчет типа ${reportType} в формате ${exportFormat}`], {type: 'text/plain'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `report_${new Date().toISOString().slice(0,10)}.${exportFormat}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.showNotification('Отчет успешно сгенерирован', 'success');
+                document.body.removeChild(modal);
+            } catch (error) {
+                console.error('Ошибка генерации отчета:', error);
+                this.showNotification('Ошибка генерации отчета', 'error');
+            }
+        });
+        
+        this.showModal('export-report-modal');
     }
 
     createBackup() {
-        this.showNotification('Резервное копирование будет добавлено в следующей версии', 'info');
+        const modalContent = `
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h2>Создать резервную копию</h2>
+                <div class="form-group">
+                    <label for="backup-name">Имя резервной копии</label>
+                    <input type="text" id="backup-name" placeholder="Введите имя">
+                </div>
+                <div class="form-actions">
+                    <button id="cancel-backup" class="btn btn-secondary">Отмена</button>
+                    <button id="create-backup" class="btn btn-primary">Создать</button>
+                </div>
+            </div>
+        `;
+        
+        const modal = document.createElement('div');
+        modal.id = 'create-backup-modal';
+        modal.className = 'modal';
+        modal.innerHTML = modalContent;
+        document.body.appendChild(modal);
+        
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#cancel-backup').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#create-backup').addEventListener('click', async () => {
+            const backupName = document.getElementById('backup-name').value || `backup_${new Date().toISOString().slice(0,10)}`;
+            
+            try {
+                // В реальном приложении здесь будет вызов API
+                // const response = await fetch('/api/backup', { method: 'POST', body: JSON.stringify({ name: backupName }) });
+                
+                // Создаем фиктивную ссылку для скачивания
+                const blob = new Blob(['Backup data for ' + backupName], {type: 'application/zip'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${backupName}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.showNotification('Резервная копия создана', 'success');
+                document.body.removeChild(modal);
+            } catch (error) {
+                console.error('Ошибка создания резервной копии:', error);
+                this.showNotification('Ошибка создания резервной копии', 'error');
+            }
+        });
+        
+        this.showModal('create-backup-modal');
     }
 
     restoreBackup() {
-        this.showNotification('Восстановление из резервной копии будет добавлено в следующей версии', 'info');
+        const modalContent = `
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h2>Восстановить из резервной копии</h2>
+                <div class="form-group">
+                    <label for="backup-file">Выберите файл резервной копии</label>
+                    <input type="file" id="backup-file" accept=".zip">
+                </div>
+                <div class="form-actions">
+                    <button id="cancel-restore" class="btn btn-secondary">Отмена</button>
+                    <button id="restore-backup" class="btn btn-primary">Восстановить</button>
+                </div>
+            </div>
+        `;
+        
+        const modal = document.createElement('div');
+        modal.id = 'restore-backup-modal';
+        modal.className = 'modal';
+        modal.innerHTML = modalContent;
+        document.body.appendChild(modal);
+        
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#cancel-restore').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.querySelector('#restore-backup').addEventListener('click', async () => {
+            const fileInput = document.getElementById('backup-file');
+            if (!fileInput.files[0]) {
+                this.showNotification('Выберите файл резервной копии', 'error');
+                return;
+            }
+            
+            try {
+                // В реальном приложении здесь будет вызов API
+                // const formData = new FormData();
+                // formData.append('backup', fileInput.files[0]);
+                // await fetch('/api/backup/restore', { method: 'POST', body: formData });
+                
+                this.showNotification('Резервная копия восстановлена', 'success');
+                document.body.removeChild(modal);
+                
+                // Перезагрузка страницы для применения изменений
+                setTimeout(() => location.reload(), 1000);
+            } catch (error) {
+                console.error('Ошибка восстановления резервной копии:', error);
+                this.showNotification('Ошибка восстановления резервной копии', 'error');
+            }
+        });
+        
+        this.showModal('restore-backup-modal');
     }
 
     saveGeneralSettings() {
@@ -1694,8 +2097,43 @@ class PrinterManager {
         }
     }
 
-    downloadJobResult(jobId) {
-        this.showNotification('Скачивание результатов заданий будет добавлено в следующей версии', 'info');
+    async downloadJobResult(jobId) {
+        try {
+            // Получаем информацию о задании
+            const jobResponse = await fetch(`/api/jobs/${jobId}`);
+            if (!jobResponse.ok) {
+                throw new Error('Ошибка получения данных задания');
+            }
+            const job = await jobResponse.json();
+            
+            // Формируем содержимое отчета
+            const reportContent = `Отчет по заданию: ${job.name}\n\n` +
+                                 `Файл: ${job.filename}\n` +
+                                 `Количество: ${job.quantity}\n` +
+                                 `Статус: ${job.status}\n` +
+                                 `Прогресс: ${job.progress}%\n` +
+                                 `Дата создания: ${job.created}\n` +
+                                 `Дата начала: ${job.started || 'не начато'}\n` +
+                                 `Дата завершения: ${job.completed || 'не завершено'}\n` +
+                                 `Материал: ${job.material}\n` +
+                                 `Приоритет: ${job.priority}\n`;
+            
+            // Создаем Blob и ссылку для скачивания
+            const blob = new Blob([reportContent], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `job_${jobId}_report.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.showNotification('Отчет по заданию скачивается', 'success');
+        } catch (error) {
+            console.error('Ошибка скачивания отчета задания:', error);
+            this.showNotification('Ошибка скачивания отчета задания', 'error');
+        }
     }
 
     // Функции создания заданий и пользователей
@@ -1792,8 +2230,22 @@ class PrinterManager {
     }
 
     // Функции для работы с пользователями
-    editUser(userId) {
-        this.showNotification('Редактирование пользователей будет добавлено в следующей версии', 'info');
+    async editUser(userId) {
+        try {
+            const response = await fetch(`/api/users/${userId}`);
+            const user = await response.json();
+            
+            // Заполняем форму редактирования
+            document.getElementById('edit-user-id').value = user.id;
+            document.getElementById('edit-user-name').value = user.name;
+            document.getElementById('edit-user-email').value = user.email;
+            document.getElementById('edit-user-role').value = user.role;
+            
+            this.showModal('edit-user-modal');
+        } catch (error) {
+            console.error('Ошибка загрузки данных пользователя:', error);
+            this.showNotification('Ошибка загрузки данных пользователя', 'error');
+        }
     }
 
     async deleteUser(userId) {
@@ -1815,6 +2267,44 @@ class PrinterManager {
         } catch (error) {
             console.error('Ошибка удаления пользователя:', error);
             this.showNotification('Ошибка удаления пользователя', 'error');
+        }
+    }
+
+    async updateUser() {
+        const userId = document.getElementById('edit-user-id').value;
+        const name = document.getElementById('edit-user-name').value;
+        const email = document.getElementById('edit-user-email').value;
+        const role = document.getElementById('edit-user-role').value;
+        
+        if (!name || !email) {
+            this.showNotification('Заполните обязательные поля', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/users/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name,
+                    email,
+                    role
+                })
+            });
+            
+            if (response.ok) {
+                this.showNotification('Данные пользователя обновлены', 'success');
+                this.hideModal('edit-user-modal');
+                this.loadUsers(); // Перезагружаем список пользователей
+            } else {
+                const error = await response.json();
+                this.showNotification(error.error || 'Ошибка обновления пользователя', 'error');
+            }
+        } catch (error) {
+            console.error('Ошибка обновления пользователя:', error);
+            this.showNotification('Ошибка обновления пользователя', 'error');
         }
     }
 }

@@ -524,7 +524,9 @@ def create_job():
         'estimated_time': data.get('estimated_time', 'Неизвестно'),
         'created': datetime.now().isoformat(),
         'started': None,
-        'completed': None
+        'completed': None,
+        'current_file_index': 0,
+        'files_printed': 0
     }
     
     jobs.append(job)
@@ -563,6 +565,33 @@ def start_job(job_id):
     if not job:
         return jsonify({'error': 'Задание не найдено'}), 404
     
+    # Проверка доступности принтеров
+    available_printers = []
+    for printer_id in job['printers']:
+        printer = next((p for p in printer_manager.printers if p['id'] == printer_id), None)
+        if printer:
+            status = printer_manager.get_printer_status(printer)
+            if status.get('online') and status['print_stats'].get('state') == 'idle':
+                available_printers.append(printer_id)
+    
+    if not available_printers:
+        return jsonify({'error': 'Нет доступных принтеров'}), 400
+    
+    # Назначение задания принтерам
+    for printer_id in available_printers:
+        printer = next((p for p in printer_manager.printers if p['id'] == printer_id), None)
+        if printer:
+            # Получение файлов для печати
+            response = requests.get(f"{printer['moonraker_url']}/server/files/list")
+            files = response.json().get('result', [])
+            gcode_files = [f for f in files if f['pathname'].endswith('.gcode')]
+            
+            if gcode_files:
+                # Выбор файла для печати
+                file_to_print = gcode_files[0]['pathname']
+                # Запуск печати
+                printer_manager.start_print(printer_id, file_to_print)
+    
     job['status'] = 'running'
     job['started'] = datetime.now().isoformat()
     save_jobs(jobs)
@@ -577,6 +606,10 @@ def pause_job(job_id):
     if not job:
         return jsonify({'error': 'Задание не найдено'}), 404
     
+    # Пауза на всех принтерах
+    for printer_id in job['printers']:
+        printer_manager.pause_print(printer_id)
+    
     job['status'] = 'paused'
     save_jobs(jobs)
     return jsonify(job)
@@ -590,7 +623,30 @@ def cancel_job(job_id):
     if not job:
         return jsonify({'error': 'Задание не найдено'}), 404
     
+    # Отмена на всех принтерах
+    for printer_id in job['printers']:
+        printer_manager.cancel_print(printer_id)
+    
     job['status'] = 'cancelled'
+    save_jobs(jobs)
+    return jsonify(job)
+
+@app.route('/api/jobs/<job_id>/progress', methods=['POST'])
+def update_job_progress(job_id):
+    """Обновление прогресса задания"""
+    data = request.json
+    progress = data.get('progress')
+    
+    if progress is None:
+        return jsonify({'error': 'Не указан прогресс'}), 400
+    
+    jobs = load_jobs()
+    job = next((j for j in jobs if j['id'] == job_id), None)
+    
+    if not job:
+        return jsonify({'error': 'Задание не найдено'}), 404
+    
+    job['progress'] = progress
     save_jobs(jobs)
     return jsonify(job)
 
